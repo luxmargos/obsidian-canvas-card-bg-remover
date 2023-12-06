@@ -1,0 +1,11 @@
+{
+	"id": "canvas-card-bg-remover",
+	"name": "Canvas Card Background Remover",
+	"version": "0.1.0",
+	"minAppVersion": "0.15.0",
+	"description": "You can make the background of cards transparent in the Canvas",
+	"author": "luxmargos",
+	"authorUrl": "https://obsidian.md",
+	"fundingUrl": "https://obsidian.md/pricing",
+	"isDesktopOnly": false
+}
