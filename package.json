@@ -1,9 +1,10 @@
 {
 	"name": "obsidian-canvas-card-bg-remover",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "This is a plugin for Obsidian (https://obsidian.md). You can make the background of cards transparent in the Canvas.",
 	"main": "main.js",
 	"scripts": {
+		"prepare":"npm run build",
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"version": "node version-bump.mjs && git add manifest.json versions.json"
