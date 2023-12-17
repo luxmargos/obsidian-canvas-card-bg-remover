@@ -1,4 +1,5 @@
 import { App, Plugin, PluginManifest, PluginSettingTab, Setting, ToggleComponent } from 'obsidian';
+import { CCBgRemoverPluginContext } from 'plugin_context';
 
 // Remember to rename these classes and interfaces!
 
@@ -6,169 +7,99 @@ import { App, Plugin, PluginManifest, PluginSettingTab, Setting, ToggleComponent
 type EmbedNodeType = 'image-embed'|'canvas-embed'|'markdown-embed';
 type EmbedNodeTypeDisplay = 'Image'|'Canvas'|'Markdown';
 
-const PluginStyleId = 'plugin-canvas-card-bg-remover';
+
+const CSSClassAll = 'ccbgrm-plugin';
+const CSSClassImage = 'ccbgrm-plugin-img';
+const CSSClassCanvas = 'ccbgrm-plugin-cnvs';
+const CSSClassMarkdown = 'ccbgrm-plugin-md';
 
 interface Embed {
 	type:EmbedNodeType;
 	display:EmbedNodeTypeDisplay;
+	cls:string;
 }
 
-interface MyPluginSettings {
-	isEnabled:boolean;
+interface CCBgRemoverPluginSettings {
 	applyAllEmbed:boolean;
 	targets:Embed[];
 }
 
+const CSSClassMap:Record<EmbedNodeType,string> = {
+	'image-embed':CSSClassImage,
+	'canvas-embed':CSSClassCanvas,
+	'markdown-embed':CSSClassMarkdown
+};
+
 const ImageNode:Embed = {
 	type:'image-embed',
-	display:'Image'
+	display:'Image',
+	cls:CSSClassImage
 }
 
 const CanvasNode:Embed = {
 	type:'canvas-embed',
-	display:'Canvas'
+	display:'Canvas',
+	cls:CSSClassCanvas
 }
 
 const MarkdownNode:Embed = {
 	type:'markdown-embed',
-	display:'Markdown'
+	display:'Markdown',
+	cls:CSSClassMarkdown
 }
 
 const AllEmbeds = [ImageNode, CanvasNode, MarkdownNode];
 
-const DEFAULT_SETTINGS: MyPluginSettings = {
-	isEnabled:true,
+const DEFAULT_SETTINGS: CCBgRemoverPluginSettings = {
 	applyAllEmbed:false,
 	targets:[ImageNode, CanvasNode]
 }
 
-const buildStyle = function(nodeType:EmbedNodeType | '', applyNormal:boolean, applyFocus:boolean, applyHover:boolean) {
-	let result = '';
-	const nodeTypeClass = nodeType && nodeType.length > 0 ? `.${nodeType}`:'';
-	const nodeTypeText = nodeType && nodeType.length > 0 ? `.${nodeType}`:'ALL';
-	if(applyNormal){
-		const styleText = `
-		/* ${nodeTypeText}: Normal State */
-		.canvas-node:not(.is-focused):not(:hover):has(.canvas-node-content${nodeTypeClass}) .canvas-node-container{
-			background-color: transparent;
-			border-color: transparent;
-			box-shadow: none;
-		}
-		
-		.canvas-node:not(.is-focused):not(:hover):has(.canvas-node-content${nodeTypeClass}) .canvas-node-content{
-			background-color: transparent;
-		}
-		`;
-
-		result = `${result}\n${styleText}`;
-	}
-
-	if(applyFocus){
-		const styleText = `
-		/* ${nodeTypeText}: Focus State */
-		.canvas-node.is-focused:has(.canvas-node-content${nodeTypeClass}) .canvas-node-container{
-			background-color: transparent;
-		}
-		
-		.canvas-node.is-focused:has(.canvas-node-content${nodeTypeClass}) .canvas-node-content{
-			background-color: transparent;
-		}
-		`;
-		result = `${result}\n${styleText}`;
-	}
-
-	if(applyHover){
-		const styleText = `
-		/* ${nodeTypeText}: Hover State */
-		.canvas-node:hover:has(.canvas-node-content${nodeTypeClass}) .canvas-node-container{
-			background-color: transparent;
-		}
-
-		.canvas-node:hover:has(.canvas-node-content${nodeTypeClass}) .canvas-node-content{
-			background-color: transparent;
-		}
-		`;
-		result = `${result}\n${styleText}`;
-	}
-	return result;
-}
-
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+export default class CCBgRemoverPlugin extends Plugin {
+	settings: CCBgRemoverPluginSettings;
+	context: CCBgRemoverPluginContext;
 
 	constructor(app: App, manifest: PluginManifest){
 		super(app, manifest);
 	}
 
-	getGlobalStyleEl():HTMLElement{
-		let found:HTMLElement | null = document.head.querySelector(`#${PluginStyleId}`);
-		if(found){
-			return found;
-		}
-
-		found = document.createElement('style');
-		found.setAttribute('type', 'text/css');
-		found.setAttribute('id', PluginStyleId);
-		document.head.appendChild(found);
-
-		return found;
-	}
-
 	clearStyle(){
-		var styleEl:HTMLElement = this.getGlobalStyleEl();
-		styleEl.innerHTML = '';
+		this.app.workspace.containerEl.removeClasses([
+			CSSClassAll,
+			CSSClassImage,
+			CSSClassCanvas,
+			CSSClassMarkdown,
+		]);
 	}
 
-	generateStyle(targets:Embed[]){
-		var styleEl:HTMLElement = this.getGlobalStyleEl();
-		var innerHtml:string = '';
+	generateStyle(){
 		if(this.settings.applyAllEmbed){
-			innerHtml = `${innerHtml}\n${buildStyle('', true,true,true)}`;
+			this.app.workspace.containerEl.addClass(CSSClassAll);
 		}else{
-			for(const target of targets){
-				innerHtml = `${innerHtml}\n${buildStyle(target.type, true,true,true)}`;
-			}
+			const clsList = this.settings.targets.map((item:Embed)=>{
+				return item.cls ? item.cls : CSSClassMap[item.type]}
+			);
+			this.app.workspace.containerEl.addClasses(clsList);
 		}
-		
-		styleEl.innerHTML = innerHtml;
 	}
 
 	async onload() {
-		await this.loadSettings();
+		this.context = { plugin: this };
 
+		await this.loadSettings();
+		
 		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new MySettingsTab(this.app, this));
+		this.addSettingTab(new CCBgRemoverPluginSettingsTab(this.app, this));
 
 		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
 		// this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
 
 		this.applySettings();
-
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'canvas-sub-styler-enable',
-			name: 'Turn on',
-			callback:()=>{
-				this.settings.isEnabled = true;
-				this.saveAndReload();
-			}
-		});
-		this.addCommand({
-			id: 'canvas-sub-styler-disable',
-			name: 'Turn off',
-			callback:()=>{
-				this.settings.isEnabled = false;
-				this.saveAndReload();
-			}
-		});
 	}
-
+	
 	async applySettings(){
 		this.clearStyle();
-
-		if(this.settings.isEnabled){
-			this.generateStyle(this.settings.targets);
-		}
+		this.generateStyle();
 	}
 	
 	onunload() {
@@ -190,10 +121,10 @@ export default class MyPlugin extends Plugin {
 	}
 }
 
-class MySettingsTab extends PluginSettingTab {
-	plugin: MyPlugin;
+class CCBgRemoverPluginSettingsTab extends PluginSettingTab {
+	plugin: CCBgRemoverPlugin;
 
-	constructor(app: App, plugin: MyPlugin) {
+	constructor(app: App, plugin: CCBgRemoverPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -224,26 +155,11 @@ class MySettingsTab extends PluginSettingTab {
 
 		const p = this.plugin;
 
-		
-		const globalSet = new Setting(containerEl);
-		globalSet.setName("Settings");
-
-		const setEnabled = new Setting(containerEl);
-		setEnabled.setName("Enabled");
-		setEnabled.setDesc("Toggle enables of plugin feature")
-		setEnabled.addToggle((comp:ToggleComponent)=>{
-			comp.setValue(p.settings.isEnabled);	
-			comp.onChange((value:boolean)=>{
-				p.settings.isEnabled = value;
-				p.saveAndReload();
-			});
-		});
-
 		const targetSet = new Setting(containerEl);
 		targetSet.setName("Cards");
 
 		const applyAll = new Setting(containerEl);
-		applyAll.setName("Apply to All Cards");
+		applyAll.setName("Apply to all cards");
 		applyAll.addToggle((comp:ToggleComponent)=>{
 			comp.setValue(p.settings.applyAllEmbed);
 			comp.onChange((value:boolean)=>{
@@ -294,3 +210,5 @@ class MySettingsTab extends PluginSettingTab {
 		});
 	}
 }
+
+
